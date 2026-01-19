@@ -50,4 +50,13 @@ public class CityGraphServiceImpl implements CityGraphService {
     public boolean containsNode(String nodeId) {
         return nodeRegistry.containsKey(nodeId);
     }
+
+    @Override
+    public LocationNode findNearestNode(double lat, double lon) {
+        LocationNode inputNode = new LocationNode("", lat, lon);
+
+        return nodeRegistry.values().stream()
+                .min(Comparator.comparingDouble(node -> node.distanceTo(inputNode)))
+                .orElse(null);
+    }
 }

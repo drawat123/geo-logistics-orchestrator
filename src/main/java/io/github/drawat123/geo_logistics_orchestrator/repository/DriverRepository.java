@@ -10,6 +10,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface DriverRepository extends JpaRepository<Driver, UUID> {
-    @Query("SELECT d FROM Driver d WHERE d.driverStatus = :driverStatus")
-    List<Driver> findDriversByStatus(@Param("driverStatus") DriverStatus driverStatus);
+    @Query("SELECT d FROM Driver d WHERE d.status = :status")
+    List<Driver> findDriversByStatus(@Param("status") DriverStatus status);
 }

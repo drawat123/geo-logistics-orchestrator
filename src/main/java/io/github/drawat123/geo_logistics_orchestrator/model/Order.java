@@ -29,6 +29,10 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private OrderStatus status = OrderStatus.PENDING;
 
+    private Double destinationLat;
+
+    private Double destinationLon;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false) // Ensures it's never changed after creation
     private LocalDateTime createdAt;

@@ -46,9 +46,11 @@ Instead of using Google Maps API, I built a routing engine manually:
 
 ### Configuration
 
-Update `src/main/resources/application.properties` with your DB credentials:
+Update `src/main/resources/application.yml` with your DB credentials:
 
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/geologistics
-spring.datasource.username=postgres
-spring.datasource.password=yourpassword
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/geologistics_db
+    username: yourusername
+    password: yourpassword

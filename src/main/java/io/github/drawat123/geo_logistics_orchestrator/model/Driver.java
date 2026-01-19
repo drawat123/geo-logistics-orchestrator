@@ -15,7 +15,7 @@ public class Driver {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    private DriverStatus driverStatus; // Uses the DriverStatus enum defined above
+    private DriverStatus status; // Uses the DriverStatus enum defined above
 
     // Stores the vertical position North (+) or South (-) of the Equator.
     // Example: New York City is approximately 40.71280000

@@ -20,4 +20,6 @@ public interface CityGraphService {
 
     // Check if a node exists
     boolean containsNode(String nodeId);
+
+    LocationNode findNearestNode(double lat, double lon);
 }

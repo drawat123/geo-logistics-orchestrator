@@ -1,0 +1,93 @@
+1. Streams:
+Java Streams, finalized as a core standard since Java 8 and further refined through Java 25 (2025/2026), provide a functional approach to data processing.
+
+Example:
+return nodeRegistry.values().stream()
+        .min(Comparator.comparingDouble(node -> node.distanceTo(inputNode)))
+        .orElse(null);
+
+Analysis of above Stream Implementation
+    a. .stream() (Source): Converts the nodeRegistry values into a pipeline of elements for processing.
+    b. .min(...) (Terminal Operation): Triggers the entire pipeline. It evaluates every node to find the one that results in the lowest value according to the provided comparator.
+    c. Comparator.comparingDouble(...): A specialized utility that avoids unnecessary object "boxing" (converting primitives to objects) by using primitive double values for comparison, which is more memory-efficient.
+    d. .orElse(null): Since min() returns an Optional (it might be empty if the registry is empty), this safely handles the case where no nearest node exists.
+
+Core Stream Characteristics
+    a. Declarative, Not Imperative: Streams focus on what to do (find the minimum distance) rather than how to loop through elements.
+    b. Lazy Evaluation: Streams do not execute any logic until a "terminal operation" (like .min(), .collect(), or .forEach()) is called.
+    c. Non-Consumable: You cannot reuse a stream once a terminal operation has finished; you must create a new one from the source.
+
+Summary Table of Operations
+    Operation 	    Type	        Purpose
+    filter()	    Intermediate	Removes elements that don't match a predicate.
+    map()	        Intermediate	Transforms each element into another form.
+    min() / max()	Terminal	    Finds the extreme element based on a comparator.
+    findFirst()	    Terminal	    Returns the first element (short-circuits the rest).
+    collect()	    Terminal	    Packages stream results back into a List, Set, or Map.
+
+2. Architectural Refactoring & Separation of Concerns
+These notes explain the "Why" and "How" behind the recommended restructuring of your Spring Boot project.
+
+Core Concept: Separation of Concerns (SoC)
+    a. Definition: Each distinct section of code should handle a specific set of responsibilities.
+    b. Goal: To minimize dependencies so that changes in one part of the system don't break unrelated parts.
+    c. In GeoLogistics:
+    The Math Layer (graph package): Should be "pure." It deals with Nodes, Edges, and Paths. It should not know what a "Driver" or "Order" is.
+    The Business Layer (service package): Should be the orchestrator. It knows about Drivers and Orders and uses the Math Layer as a tool.
+
+The Problem: "Leaking" Abstractions. Originally DispatchService was placed inside the graph package.
+
+Why this is bad:
+    a. Tight Coupling: Your reusable graph algorithms became dependent on your specific database repositories (OrderRepository).
+    b. Zero Reusability: If you wanted to reuse your Graph code in a different project (e.g., a network simulator), you couldn't, because it would try to drag Driver and Order dependencies with it.
+    c. Confusion: Developers looking in graph expect math, not business rules.
+
+The Solution: Layered Architecture
+The refactoring moves classes into their correct semantic "home" based on their role.
+
+The dto (Data Transfer Object) Package
+    a. What goes here: Objects used only to send data out to the user (API responses). They are NOT database entities.
+    b. Your Move: DispatchResult moves from graph/model → dto/.
+    c. Why: DispatchResult is just a message saying "Driver X assigned." It is not a mathematical element of the graph.
+
+The service (Business) Package
+    a. What goes here: The logic that ties everything together. It talks to the Database (repository) and the Math Engine (graph).
+    b. Your Move: DispatchService moves from graph/service → service/.
+    c. Why: Dispatching is a business decision. It involves checking database status (AVAILABLE), locking rows, and updating timestamps.
+
+The graph (Math) Package
+    a. What stays here: Pure algorithms. LocationNode, RoadEdge, DijkstraPathfinder.
+    b. Rule: This package should have zero dependencies on your model or repository packages.
+
+Visualization of Dependencies
+    a. Before (Circular & Messy): Graph Package <---> Repository Package (Graph knew about Database!)
+    b. After (Clean & Linear): Controller ---> Business Service ---> Graph Package | V Repository
+
+Summary Checklist for Code Review
+When reviewing package structures in the future, ask these questions:
+    a. [ ] Can I copy-paste this package into another project? (The graph package should say Yes).
+    b. [ ] Does this class talk to the database? (If yes, it belongs in service or repository, not model or dto).
+    c. [ ] Is this object saved to the DB? (If yes, model. If no, dto or POJO).
+
+3. @RestController
+Purpose: Marks the class as a web controller and handles incoming RESTful requests.
+
+Composition: It is a "convenience annotation" that combines @Controller and @ResponseBody.
+
+Behavior:
+    a. Unlike a standard @Controller, which looks for a view (like an HTML or JSP page), @RestController ensures that the returned data is written directly to the HTTP response body.
+    b. It automatically serializes Java objects into JSON or XML formats using message converters (like Jackson).
+
+4. @RequestMapping("/api") public class DispatchController
+Purpose: Defines the base URL path for all endpoints within this controller.
+
+Routing: In this specific case, any request starting with /api will be routed to the DispatchController class.
+
+Hierarchy: It is used at the class level to set a shared prefix. This avoids repeating /api in every individual method mapping (like @GetMapping("/status"), which would resolve to /api/status).
+
+5. @RequestMapping
+Before the shortcut @PostMapping was introduced, developers used @RequestMapping with the method attribute. This is still fully functional in 2026:
+
+Syntax: @RequestMapping(value = "/path", method = RequestMethod.POST)
+
+Use Case: This is useful if you want a single method to handle multiple HTTP methods (e.g., both POST and PUT) by passing an array: method = {RequestMethod.POST, RequestMethod.PUT}.
