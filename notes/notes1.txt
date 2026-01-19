@@ -1,0 +1,170 @@
+1. @Entity (Mandatory)
+Purpose: Marks a Java class as a persistent object that JPA/Hibernate should manage.
+
+Behavior: Signals that this class represents a database table. Each instance of the class represents a specific row in that table.
+
+Requirements:
+    a. The class must have a no-argument constructor (public or protected).
+    b. The class must have a primary key field marked with @Id.
+
+Querying: The name attribute in @Entity(name = "UserEntity") defines the name used in JPQL/HQL queries, not the database itself.
+
+2. @Table (Optional)
+Purpose: Provides fine-grained control over the physical database table mapping.
+
+Behavior: If omitted, JPA defaults the table name to the class name (or a snake_case version like user_details for a UserDetails class).
+
+Key Attributes:
+    a. name: Explicitly sets the table name in the database (e.g., @Table(name = "users")).
+    b. schema / catalog: Defines the database schema or catalog where the table resides.
+    c. uniqueConstraints: Used to define multi-column unique constraints at the table level.
+
+Example:
+@Entity(name = "EmployeeObj") // Use "EmployeeObj" in JPQL queries
+@Table(name = "employees_db") // Maps to physical table "employees_db"
+public class Employee {
+    @Id
+    private Long id;
+}
+
+3. Primary Key Generation
+@Id
+    a. Purpose: Marks a field as the Primary Key of the entity.
+    b. Requirement: Every JPA entity must have exactly one @Id field to uniquely identify each record.
+
+@GeneratedValue(strategy = GenerationType.UUID)
+    a. Purpose: Instructs the persistence provider to automatically generate a Universally Unique Identifier (UUID) for the ID field.
+    b. Standard: Complies with RFC 4122.
+    c. Use Case: Best for distributed systems where you need unique IDs across different databases without coordination.
+
+4. Relationship Mapping
+@OneToMany(mappedBy = "driver")
+    a. Purpose:
+    Defines a "one-to-many" relationship (e.g., one Driver has many Orders).
+    mappedBy Attribute: Indicates that this side of the relationship is the inverse (non-owning) side.
+
+    b. Function:
+    "driver" refers to the field name in the other entity (the "many" side) that owns the relationship.
+    It tells JPA: "The mapping is already handled by the driver field in the target class; don't create a join table for this side".
+    Benefit: Prevents redundant columns or join tables, keeping the database schema clean.
+
+@ManyToOne (The "Owning" Side)
+    a. Purpose:
+    Defines a relationship where multiple instances of the current entity are associated with a single instance of another entity (e.g., many Orders belong to one Driver).
+    Database Impact: By default, this annotation creates a Foreign Key (FK) column in the table of the entity where it is defined.
+    The "Owning Side": In JPA, the @ManyToOne side is almost always the owning side. This means it is responsible for managing the relationship; if you don't set the object on this side, the relationship won't be saved in the database.
+
+    b. Key Attributes
+    * fetch: Controls when the related data is loaded.
+        - Default: FetchType.EAGER (loads the related object immediately).
+        - Best Practice: Often changed to FetchType.LAZY to improve performance by loading data only when requested.
+    * optional: If set to false, the database will enforce a non-null relationship (a record must have a parent).
+    * cascade: Determines if operations (like save or delete) should propagate to the related "one" entity.
+
+    c. Working with @JoinColumn
+    While @ManyToOne defines the relationship type, @JoinColumn is often used next to it to customize the physical database column:
+    name: Sets the name of the FK column (e.g., department_id).
+    If omitted, JPA generates a default name like targetEntityName_id.
+
+5. JPA auditing annotations
+@EnableJpaAuditing (The Master Switch)
+    a. Purpose: A configuration-level annotation that activates the auditing infrastructure across your entire Spring Boot application.
+    b. Placement: Add it to a @Configuration class or your main @SpringBootApplication class.
+    c. Function: Without this, all other auditing annotations (like @CreatedDate) will be ignored and remain null.
+
+@EntityListeners(AuditingEntityListener.class) (The Observer)
+    a. Purpose: Attaches a "listener" to a specific entity that "listes" for database events.
+    b. How it Works: It uses JPA lifecycle callbacks like @PrePersist (before saving) and @PreUpdate (before updating) to automatically inject the correct values into your audit fields.
+    c. Best Practice: Often placed on a Base/MappedSuperclass so that all child entities inherit the auditing behavior without repeating code.
+
+@CreatedDate (The Timestamp)
+    a. Purpose: Automatically captures the exact date and time a record is first saved to the database.
+    b. Behavior: It only sets the value once upon creation and does not update it during later modifications.
+    c. Supported Types: Works with modern Java 8+ types like LocalDateTime, Instant, or ZonedDateTime, as well as legacy types like Date.
+
+6. Global exception handling annotations
+@RestControllerAdvice (The Global Handler)
+    a. Purpose: A specialized version of @ControllerAdvice that combines it with @ResponseBody.
+    b. Behavior: It acts as a global interceptor for exceptions thrown by any @RestController.
+    c. Benefit: Instead of adding try-catch blocks in every controller, you centralize error logic here to ensure consistent JSON/XML error responses across the entire API.
+
+@ExceptionHandler (The Specific Catcher)
+    a. Purpose: Used on a method within a @RestControllerAdvice class to handle a specific type of exception.
+    b. PathNotFoundException.class: This parameter tells Spring: "Whenever a PathNotFoundException occurs anywhere in the app, execute this specific method to handle it".
+    c. Function: It allows you to build a custom error object (like a message or timestamp) to return to the user instead of a raw stack trace.
+
+7. @Version annotation
+In Spring Boot/JPA, the @Version annotation is used to implement Optimistic Locking. It is a critical tool for maintaining data integrity when multiple users try to update the same database record simultaneously.
+
+Core Concept: Optimistic Locking
+    Problem: If User A and User B both read a record, modify it, and save it, the "Last One Wins" problem occurs (User B overwrites User A’s changes without knowing).
+    Solution: JPA checks a version number before saving. If the version in the database is higher than the version in the Java object, it means someone else updated it first, and JPA throws an exception.
+
+How It Works
+    Read: When you fetch an entity, it includes its current version (e.g., version = 1).
+    Update: When you save the entity, JPA automatically executes a SQL query like:
+    UPDATE table SET data = ?, version = 2 WHERE id = ? AND version = 1
+    Conflict: If the version in the database is already 2, the WHERE clause fails (0 rows updated), and Spring throws an OptimisticLockingFailureException.
+
+Key Attributes
+    Automatic Management: You do not manually increment this value. Hibernate/JPA increments it automatically every time an update occurs.
+    Supported Data Types: Most commonly used with int, Integer, long, Long, or Timestamp.
+    Placement: You can have only one @Version field per entity.
+
+8. JPQL Custom Query structure:
+Example:
+public interface DriverRepository extends JpaRepository<Driver, UUID> {
+    @Query("SELECT d FROM Driver d WHERE d.driverStatus = :driverStatus")
+    List<Driver> findDriversByStatus(@Param("driverStatus") DriverStatus driverStatus);
+}
+
+JpaRepository<Driver, UUID>
+   a. Purpose: Inherits all standard CRUD operations (save, findById, delete, etc.).
+   b. Generics: <Driver, UUID> tells Spring Data JPA that this repository manages the Driver entity and its primary key (@Id) is of type UUID.
+
+@Query (JPQL)
+   a. Definition: Allows you to write JPQL (Java Persistence Query Language).
+   JPQL vs SQL: JPQL queries Java Classes and Fields (e.g., Driver, driverStatus) rather than database tables and columns.
+   b. The Query: "SELECT d FROM Driver d ..."
+   d is an alias for the Driver entity.
+   This is "database agnostic," meaning it works the same whether you use PostgreSQL, MySQL, or Oracle.
+
+Named Parameters (:driverStatus)
+   c. Purpose: The colon (:) prefix denotes a Named Parameter.
+   d. Benefit: It is more readable than positional parameters (?1) and provides built-in protection against SQL Injection attacks.
+
+@Param("driverStatus")
+   a. Purpose: Binds the method argument DriverStatus driverStatus to the :driverStatus placeholder in the query string.
+   Note: In modern Spring Boot versions (post-2024), if the method parameter name matches the query variable name exactly, @Param is often optional, but it remains a "best practice" for clarity.
+
+9. PostgreSQL
+Connecting: psql postgres -U postgres
+
+Create database: CREATE DATABASE geologistics_db
+
+List and then connect to database: \l and \c geologistics_db
+
+Connect to database directly: psql -d geologistics_db -U postgres
+
+List all tables in a database: \dt
+
+List the table structure: \d drivers
+
+10. Hibernate/JPA properties
+jpa.hibernate.ddl-auto: update
+    a. Purpose: Controls how Hibernate handles the database schema (tables) during application startup.
+    update behavior: Hibernate compares your Java @Entity classes with the existing database tables. It will add missing columns or tables but will never delete existing columns or data.
+    b. Other common values:
+    create: Drops existing tables and creates new ones every time the app starts (lose all data).
+    validate: Only checks if the schema matches; makes no changes.
+    none: Does nothing (standard for Production environments).
+
+hibernate.dialect: ...PostgreSQLDialect
+    a. Purpose: Tells Hibernate exactly which database "language" (dialect) to speak.
+    b. Function: While JPA is database-agnostic, every database (PostgreSQL, MySQL, Oracle) has its own specific syntax for things like pagination, sequence generation, or data types.
+    c. 2026 Context: Modern Hibernate (6.x+) is increasingly good at detecting this automatically, but explicitly setting it ensures stability when using specific PostgreSQL features like JSONB or UUIDs.
+
+show-sql: true
+    a. Purpose: A debugging tool that prints every SQL statement generated by Hibernate to the console.
+    b. Function: Allows you to see exactly what is happening "under the hood" (e.g., when a @ManyToOne relationship triggers a SELECT query).
+    c. Note: In a professional environment, you would use logging.level.org.hibernate.SQL=DEBUG instead, as it provides more detailed timestamps and formatting.

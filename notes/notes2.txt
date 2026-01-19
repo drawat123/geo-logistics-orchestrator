@@ -1,0 +1,55 @@
+1. Records
+Java Records are the industry standard for creating "Data Carrier" classes. A record is a special type of class that automatically generates boilerplate code. Before records, you had to write constructors, getters, toString(), equals(), and hashCode() manually or use Lombok.
+
+Characteristics for Your Notes
+    a. Immutability: All fields in a record are private and final by default. You cannot change them after the record is created.
+    b. No Setters: Records only provide "Accessors" (getters). Note that the naming convention is name() instead of getName().
+    c. Final Class: Records are implicitly final; you cannot extend them, and they cannot extend other classes.
+    d. Implicit Methods: Java automatically generates: A Canonical Constructor (matching the parameters), equals() and hashCode() based on the state, A readable toString() (e.g., User[name=John, age=25]).
+
+When to Use Records in Spring Boot
+    a. DTOs (Data Transfer Objects): Perfect for sending/receiving data in @RestController endpoints.
+    b. API Responses: Use them to define the JSON structure of your error messages or data payloads.
+    c. Database Projections: Use them with @Query in your repositories to fetch only specific columns.
+
+2. CommandLineRunner (@Component)
+Role: A Spring Boot interface used to run a specific block of logic once after the application has fully started.
+
+Execution Timing: It triggers after the Application Context is loaded but before the app starts accepting HTTP requests.
+
+The @Component Approach: By marking the class with @Component, Spring automatically detects, instantiates, and executes it during the startup sequence.
+
+Key Components
+    a. run(String... args): The mandatory method you must override.
+    b. args: Captures any raw command-line arguments passed at runtime (e.g., java -jar app.jar arg1 arg2).
+    c. Dependency Injection: Since it is a @Component, you can use Constructor Injection to bring in Repositories or Services to perform startup tasks (like seeding a database).
+
+Example: See usage in class io.github.drawat123.geo_logistics_orchestrator.MyApplicationStartupRunner
+
+3. Dijkstra algorithm
+Reference Video: https://youtu.be/EFg3u_E6eHU?si=X4CWZb1lZaztNsh3
+
+Core Concept
+    a. Dijkstra’s algorithm finds the shortest path from a single source vertex to all other vertices in a weighted graph with non-negative edge weights.
+    b. Greedy Logic: At each step, it picks the unvisited vertex with the smallest current "tentative" distance and "relaxes" its neighbors.
+    c. Relaxation: If a shorter path to a neighbor is found through the current vertex, update that neighbor's distance.
+
+Data Structures Used
+    a. Adjacency List: Efficiently stores the graph as an array of lists, where each list entry is a pair: (neighbor_node, edge_weight).
+    b. Priority Queue (Min-Heap): Stores pairs of (distance, vertex). It ensures that the vertex with the minimum distance is always extracted first in O(log V) time.
+    c. Distance Array: Stores the best-known distance from the source to each vertex, initialized to Infinity, except for the source which is 0.
+
+Algorithmic Steps
+    a. Initialize: Set dist[source] = 0 and dist[v] = ∞ for all other vertices.
+    b. Seed: Push (0, source) into the Priority Queue (PQ).
+    c. Process: While PQ is not empty:
+    * Extract Min: Pop the vertex u with the smallest distance d.
+    * Stale Entry Check: If d>dist[u], skip it (a shorter path was already found).
+    * Relax Neighbors: For each neighbor v of u with weight w:
+        - If dist[u] + w < dist[v]:
+        - Update dist[v] = dist[u] + w.
+        - Push (dist[v], v) into the PQ.
+
+Complexity
+    a. Time Complexity O((V+E)log V))Each edge is relaxed once, and each PQ operation takes \log V.
+    b. Space Complexity O(V+E) To store the adjacency list, distance array, and priority queue.
