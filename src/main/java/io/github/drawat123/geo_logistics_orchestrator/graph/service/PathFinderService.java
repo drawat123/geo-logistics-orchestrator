@@ -2,7 +2,7 @@ package io.github.drawat123.geo_logistics_orchestrator.graph.service;
 
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.PathResult;
 
-public interface PathfinderService {
+public interface PathFinderService {
     /**
      * @param graph       The city graph data source
      * @param startNodeId The UUID of the starting location (e.g., Driver location)

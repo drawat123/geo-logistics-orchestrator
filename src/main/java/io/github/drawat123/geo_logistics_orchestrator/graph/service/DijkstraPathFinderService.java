@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 
 @Service
-public class DijkstraPathfinderService implements PathfinderService {
+public class DijkstraPathFinderService implements PathFinderService {
     @Override
     public PathResult findShortestPath(CityGraphService graph, String startNodeId, String endNodeId) {
         // 1. Validation

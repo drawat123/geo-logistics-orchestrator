@@ -3,7 +3,7 @@ package io.github.drawat123.geo_logistics_orchestrator.config;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.LocationNode;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.PathResult;
 import io.github.drawat123.geo_logistics_orchestrator.graph.service.CityGraphService;
-import io.github.drawat123.geo_logistics_orchestrator.graph.service.PathfinderService;
+import io.github.drawat123.geo_logistics_orchestrator.graph.service.PathFinderService;
 import io.github.drawat123.geo_logistics_orchestrator.model.Driver;
 import io.github.drawat123.geo_logistics_orchestrator.model.DriverStatus;
 import io.github.drawat123.geo_logistics_orchestrator.model.Order;
@@ -20,13 +20,13 @@ import java.math.BigDecimal;
 public class StartupConfig {
     private final CityGraphService cityGraphService;
 
-    private final PathfinderService pathfinderService;
+    private final PathFinderService pathfinderService;
 
     private final DriverRepository driverRepository;
 
     private final OrderRepository orderRepository;
 
-    public StartupConfig(CityGraphService cityGraphService, PathfinderService pathfinderService, DriverRepository driverRepository, OrderRepository orderRepository) {
+    public StartupConfig(CityGraphService cityGraphService, PathFinderService pathfinderService, DriverRepository driverRepository, OrderRepository orderRepository) {
         this.cityGraphService = cityGraphService;
         this.pathfinderService = pathfinderService;
         this.driverRepository = driverRepository;
@@ -73,7 +73,7 @@ public class StartupConfig {
             driverRepository.save(driver);
 
             // 3. Seed an Order (Destination close to Node E)
-            Order order = new Order();
+            /*Order order = new Order();
             order.setOrderValue(BigDecimal.valueOf(100.50));
             order.setStatus(OrderStatus.PENDING);
             // Slightly offset from Node E (81, 63)
@@ -84,7 +84,7 @@ public class StartupConfig {
 
             System.out.println(">>> TEST DATA READY <<<");
             System.out.println("Driver ID: " + driver.getId()); // UUID
-            System.out.println("Order ID: " + savedOrder.getId()); // UUID
+            System.out.println("Order ID: " + savedOrder.getId()); // UUID*/
         };
     }
 }

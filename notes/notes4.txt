@@ -1,0 +1,168 @@
+1. @SpringBootTest
+@SpringBootTest is the foundational annotation in Spring Boot for integration testing, designed to bootstrap the entire application context and load all necessary beans. It is used for comprehensive tests where components (controllers, services, repositories) need to interact, rather than testing them in isolation.
+
+Key Notes for @SpringBootTest:
+    a. Core Purpose: Loads the full ApplicationContext using SpringApplication.
+    b. Default Behavior: By default, it does not start an embedded web server (it operates in a MOCK environment, loading a WebApplicationContext without starting a server).
+    c. Web Environment Options:
+    * webEnvironment = WebEnvironment.RANDOM_PORT: Starts a real web server on a random port, perfect for end-to-end tests (avoids conflicts).
+    * webEnvironment = WebEnvironment.DEFINED_PORT: Uses a specific port (e.g., 8080).
+    * webEnvironment = WebEnvironment.NONE: Starts a non-web application context.
+    d. Components & Scanning: It automatically searches for your main configuration class (annotated with @SpringBootApplication) by traversing up from the test package.
+    e. Dependency Injection: Works with @Autowired for injecting beans, just like a real application.
+    f. Mocking Beans: Use @MockBean to replace specific beans in the context with Mockito mocks (e.g., to mock an external API client).
+    g. Context Caching: Spring caches the context between tests. If you use @MockBean or @DirtiesContext, you force the context to reload, which slows down tests.
+    h. Transactional Rollback: When used with @Transactional, tests will automatically roll back changes made to the database after each method.
+
+Commonly Used Accompanying Annotations:
+    a. @AutoConfigureMockMvc: Required if webEnvironment is MOCK (default) and you want to use MockMvc.
+    b. @LocalServerPort: Injects the random port number when using RANDOM_PORT.
+    c. TestRestTemplate / WebTestClient: Used for executing REST calls against the running server.
+
+Typical Example:
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class MyIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Test
+    void testEndpoint() {
+        String body = this.restTemplate.getForObject("/api/test", String.class);
+        assertThat(body).isEqualTo("Expected Output");
+    }
+}
+
+2. ExecutorService, CountDownLatch and Runnable
+In Java, combining ExecutorService and CountDownLatch is a common pattern for managing concurrent tasks and synchronizing their completion. Runnable is a functional interface that represents the actual task or piece of work you want to execute.
+
+Core Concepts
+    a. ExecutorService: Manages a pool of worker threads, allowing you to submit tasks (Runnable or Callable) for asynchronous execution.
+    b. CountDownLatch: A synchronization aid that lets one or more threads wait until a set of operations (the "count") performed in other threads is completed.
+
+Typical Workflow
+    a. Initialize: Create a CountDownLatch with an initial count equal to the number of tasks you intend to wait for.
+    b. Submit Tasks: Submit tasks to the ExecutorService. Each task must have a reference to the shared latch.
+    c. Count Down: As each task finishes, it calls latch.countDown(), usually inside a finally block to ensure the count decrements even if an exception occurs.
+    d. Wait: The main thread (or another managing thread) calls latch.await(), which blocks execution until the latch count reaches zero.
+
+Key Benefits
+    a. Flexible Synchronization: Unlike join(), which waits for specific threads to die, CountDownLatch allows you to wait for a specific number of events, regardless of which threads complete them.
+    b. Non-Shutting Down: You can wait for tasks to finish without shutting down the ExecutorService, allowing you to reuse the thread pool for subsequent tasks.
+    c. Parallel Processing: Facilitates starting multiple services or background checks simultaneously and waiting for all to be "ready" before proceeding.
+
+Implementation Example
+int taskCount = 5;
+CountDownLatch latch = new CountDownLatch(taskCount);
+ExecutorService executor = Executors.newFixedThreadPool(3);
+
+for (int i = 0; i < taskCount; i++) {
+    executor.execute(new Runnable() {
+        @Override
+        public void run() {
+            try {
+                // Task logic
+            } finally {
+                latch.countDown();
+            }
+        }
+    });
+}
+
+latch.await(); // Main thread blocks here until all 5 tasks call countDown()
+System.out.println("All tasks finished!");
+executor.shutdown(); // Clean up the executor pool
+
+Alternatives
+    a. Future.get(): Use if you need to retrieve individual results from tasks.
+    b. invokeAll(): A built-in ExecutorService method that executes all tasks and waits for their completion automatically.
+    c. awaitTermination(): Use if your only goal is to wait for all tasks to finish after calling shutdown() on the executor.
+
+3. Best-Effort Retry Loop
+Why create a new function (attemptBooking)?
+The primary reason is Transaction Isolation.
+    a. The "Poisoned" Transaction Problem: In Spring/Hibernate, if an exception (like OptimisticLockingFailureException or any RuntimeException) is thrown inside a @Transactional block, the entire transaction is marked for rollback.
+    b. The Consequence: If you kept everything in one big function with one big @Transactional annotation:
+    * You try Driver A.
+    * The update fails (Driver A is taken).
+    * Hibernate marks the transaction as "Rollback Only."
+    * You catch the exception and try to loop to Driver B.
+    * CRASH: When you try to save Driver B, Spring throws a TransactionSystemException because you are trying to write to a transaction that is already dead/marked for rollback.
+
+The Fix: By moving the logic to attemptBooking and annotating it with @Transactional(Propagation.REQUIRES_NEW), we ensure that every single driver attempt runs in its own completely separate transaction.
+    a. If Driver A fails, Transaction #1 rolls back.
+    b. The exception bubbles up to the loop.
+    c. The loop catches it.
+    d. The loop calls attemptBooking for Driver B, which starts Transaction #2.
+    e. Transaction #2 is fresh and healthy; it succeeds.
+
+Why remove @Transactional from the main loop (original function)?
+We remove (or avoid) @Transactional on the parent method (dispatchOrder) for two reasons:
+
+Performance (Connection Holding)
+    a. If the main method is @Transactional, a database connection is borrowed from the pool the moment the method starts.
+    b. It holds that connection while you do non-database work (like calculating geometric paths, sorting candidates, or Thread sleeping). This is bad practice; it starves the connection pool.
+    c. By removing it, we only borrow a connection for the split-second we are inside attemptBooking.
+"All or Nothing" vs. "Process Manager"
+    a. The main method is a Process Manager. Its job is flow control (looping, error handling, logging). It doesn't need to be atomic itself.
+    b. Only the specific act of "locking a driver and updating the order" needs to be atomic.
+
+Why pass IDs (UUID) instead of Entity Objects?
+Notice attemptBooking takes UUID driverId, not Driver driver.
+
+// GOOD: Fresh fetch inside the transaction
+public DispatchResult attemptBooking(UUID driverId, ...) {
+    Driver driver = driverRepo.findById(driverId); // Fetch LATEST version
+    // ...
+}
+
+// BAD: Passing stale object
+public DispatchResult attemptBooking(Driver driver, ...) {
+    // This 'driver' object might be 100ms old.
+    // Its @Version field might already be outdated compared to the DB.
+    // You are effectively trying to update a "ghost".
+}
+
+Stale Data: The driverCandidate object in your loop was fetched before the loop started. In a high-concurrency environment, that data is already "stale" (old).
+Re-fetching: Passing the ID forces the new transaction to fetch the absolute latest state of the Driver from the database, ensuring the @Version check is accurate.
+
+Summary Table
+    a. REQUIRES_NEW: Isolates failures. If Driver A fails, it doesn't kill the ability to book Driver B.
+    b. No @Transactional on Parent: Prevents holding DB connections during calculations; prevents the "Rollback Only" flag from killing the loop.
+    c. Passing IDs, not Entities: Ensures we fetch the fresh, latest version of the data inside the new transaction scope.
+    d. self.attemptBooking:	Critical - Spring Annotations (@Transactional) only work if called from outside the bean. Calling this.method() bypasses the proxy. self (injected instance of class) ensures the proxy triggers the transaction.
+
+4. Event-Driven Architecture
+The Analogy: The Waiter and The Kitchen
+Imagine a busy restaurant.
+    a. Synchronous (The Old Way): You give your order to the waiter. The waiter walks to the kitchen, stands there and waits for the chef to cook the meal, plate it, and then brings it to you. The waiter cannot help anyone else during this 20-minute wait. This is slow and inefficient.
+    b. Asynchronous (The New Way): You give your order to the waiter. The waiter writes it on a ticket, sticks it on the kitchen rail (Publishes Event), and immediately says "Thank you, your food will be ready soon" (Returns Response). The waiter goes to help the next table. Meanwhile, in the background, the chefs (Listener) see the ticket and start cooking.
+
+The Components Breakdown
+    a. ApplicationEventPublisher (The Announcer)
+    * Role: This is the mechanism that "shouts" to the rest of the application that something just happened.
+    * In your code: eventPublisher.publishEvent(...)
+    * What it does: It takes an object (the event) and broadcasts it. It doesn't care who is listening or what they do with it. It just says, "Hey everyone, an Order was just created!"
+    b. @EventListener (The Receiver)
+    * Role: This marks a method as a "handler" for a specific event.
+    * In your code: public void handleOrderCreated(OrderCreatedEvent event)
+    * What it does: Spring constantly watches for events. When the Publisher shouts "OrderCreatedEvent", Spring looks for any method annotated with @EventListener that accepts that specific event type and runs it.
+    c. @Async (The Magic Switch)
+    * Role: This is the most critical part for performance.
+    * Without @Async: Even with events, the code would still run synchronously. The main thread would pause, jump to the listener, run the dispatch logic, and then go back to return the HTTP response.
+    * With @Async: It tells Spring: "Do not run this method in the current thread (the one handling the HTTP request). Instead, grab a new thread from the pool and run this method there."
+    Result: The original thread (HTTP) is free immediately to return the JSON response to the user.
+
+The Execution Flow
+Here is the timeline of what happens when a user clicks "Book Ride":
+    a. Main Thread (HTTP): createOrder is called.
+    b. Main Thread: Saves Order to DB (STATUS: PENDING).
+    c. Main Thread: Calls publishEvent.
+    d. Because of @Async on the listener, Spring basically says "Okay, I've noted this task for later" and moves on immediately.
+    e. Main Thread: Returns 201 CREATED to the user. (User sees "Success" instantly).
+    f. Background Thread: (Milliseconds later) Wakes up, sees the event, and calls handleOrderCreated.
+    g. Background Thread: Runs the heavy DispatchService logic (calculating paths, finding drivers).
+    h. Background Thread: Updates the Order to ASSIGNED.

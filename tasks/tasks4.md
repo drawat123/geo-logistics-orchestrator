@@ -158,16 +158,3 @@ public class DispatchEventListener {
 2. **Performance:** The `POST /orders` endpoint returns immediately, not waiting for the pathfinding algorithm.
 3. **Test Coverage:** The `DispatchConcurrencyTest` passes with both orders being assigned (assuming 2 drivers exist, or
    1 succeeds and 1 waits gracefully).
-
-### **Prompt for asking about next day tasks in current chat**
-
-So when i complete I can paste my code in the new chat?
-Also tell me prompt so that I can get tasks for day 5
-
-### **Prompt for Day 5**
-
-I have completed Day 4. The Dispatch Service now handles race conditions using a retry mechanism, and I've decoupled the
-logic using Spring Events (@Async).
-
-I am ready for Day 5: System Optimization & Caching. Please break down the tasks to optimize the Graph Engine (caching
-distances) and implement a simple frontend visualization if time permits.
