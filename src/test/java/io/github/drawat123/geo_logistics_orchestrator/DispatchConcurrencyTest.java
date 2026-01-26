@@ -11,6 +11,7 @@ import io.github.drawat123.geo_logistics_orchestrator.model.OrderStatus;
 import io.github.drawat123.geo_logistics_orchestrator.repository.DriverRepository;
 import io.github.drawat123.geo_logistics_orchestrator.repository.OrderRepository;
 import io.github.drawat123.geo_logistics_orchestrator.service.DispatchService;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+@Slf4j
 @SpringBootTest
 public class DispatchConcurrencyTest {
     @Autowired
@@ -94,7 +96,7 @@ public class DispatchConcurrencyTest {
             try {
                 dispatchService.assignDriverToOrder(finalSavedOrder.getId());
             } catch (Exception e) {
-                System.out.println("Task 1 failed: " + e.getClass().getName());
+                log.error("Task 1 failed: {}", e.getClass().getName());
             } finally {
                 latch.countDown();
             }
@@ -106,7 +108,7 @@ public class DispatchConcurrencyTest {
             try {
                 dispatchService.assignDriverToOrder(finalSavedOrder1.getId());
             } catch (Exception e) {
-                System.out.println("Task 2 failed: " + e.getClass().getName());
+                log.error("Task 2 failed: {}", e.getClass().getName());
             } finally {
                 latch.countDown();
             }

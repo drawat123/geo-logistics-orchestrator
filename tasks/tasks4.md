@@ -18,6 +18,7 @@ Before we fix it, we must prove it is broken. We will write a test that simulate
 
 ```java
 
+@Slf4j
 @SpringBootTest
 public class DispatchConcurrencyTest {
 
@@ -41,7 +42,7 @@ public class DispatchConcurrencyTest {
             try {
                 dispatchService.assignDriverToOrder(order1Id);
             } catch (Exception e) {
-                System.out.println("Task 1 failed: " + e.getClass().getName());
+                log.error("Task 1 failed: {}", e.getClass().getName());
             } finally {
                 latch.countDown();
             }

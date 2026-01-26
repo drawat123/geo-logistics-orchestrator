@@ -73,7 +73,7 @@ for (int i = 0; i < taskCount; i++) {
 }
 
 latch.await(); // Main thread blocks here until all 5 tasks call countDown()
-System.out.println("All tasks finished!");
+log.debug("All tasks finished!");
 executor.shutdown(); // Clean up the executor pool
 
 Alternatives

@@ -169,32 +169,4 @@ A strong README distinguishes a hobby project from a professional one. Ensure yo
 1. **Graph Service** caches "Nearest Node" results.
 2. **Dashboard.html** visually flips from Orange (Pending) to Green (Assigned).
 3. **Docker** container allows the app to run anywhere.
-4. **Use logger** and instead of sout calls
-
-### **Prompt for asking about next day tasks in current chat**
-
-So when I complete day 5 I can paste my code in the new chat?
-Also tell me prompt so that I can get tasks for day 6
-
-### **Prompt for Day 6**
-
-I have completed Day 5. The application now has:
-
-Caching: GraphService uses Spring Cache to store "Nearest Node" calculations.
-
-Visualization: A simple HTML dashboard that uses Long Polling to track Order status.
-
-Containerization: The app is wrapped in a Docker container.
-
-I am ready for Day 6: Real-time Communication & Security.
-
-Please breakdown the tasks for:
-
-WebSockets: Replace the frontend "Polling" mechanism with Spring Boot WebSockets (STOMP) so the server pushes updates to
-the dashboard instantly when the Driver is assigned.
-
-Security: Implement basic Spring Security with JWT (JSON Web Tokens) so that only authenticated users can create orders
-or view the dashboard.
-
-Testing: Write a Unit Test using Mockito for the DispatchService to verify the retry logic without hitting the actual
-database.
+4. **Use logger** instead of sout calls

@@ -1,0 +1,51 @@
+1. Caching
+E.g. @Cacheable(value = nearestNode , key = #lat + - + #lon )
+
+@Cacheable: Marks the method as a candidate for caching. Before executing the method body, Spring checks the specified cache for a matching key. If found, the cached result is returned immediately without running the method.
+
+value = "nearestNode": Specifies the name (or namespace) of the cache where results are stored.
+    a. Note: In modern Spring Boot (2026), value and cacheNames are interchangeable aliases.
+
+key = "#lat + '-' + #lon": A Spring Expression Language (SpEL) expression used to generate a unique identifier for the cache entry.
+    a. It concatenates the lat and lon parameters with a hyphen (e.g., "40.7128-74.0060") to create a composite key.
+    b. Using a custom key is recommended over the default SimpleKeyGenerator to ensure uniqueness across different methods sharing the same cache.
+
+2. Docker
+E.g.
+# Build Stage
+FROM maven:3.8.5-openjdk-17 AS build
+COPY . .
+RUN mvn clean package -DskipTests
+
+# Run Stage
+FROM openjdk:17-jdk-slim
+COPY --from=build /target/*.jar app.jar
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
+This Dockerfile uses a multi-stage build to create a lightweight production image by separating the heavy build environment from the final execution environment.
+
+Build Stage
+    a. FROM maven:3.8.5-openjdk-17 AS build: Initializes the first stage using an image that contains both Maven 3.8.5 and the Java 17 Development Kit (JDK).
+    b. COPY . .: Copies your entire project source code from the local directory into the container's current working directory.
+    c. RUN mvn clean package -DskipTests: Compiles the Java code and packages it into a "fat" executable JAR file.
+    * The -DskipTests flag bypasses unit tests to speed up the image building process.
+
+Run Stage
+    a. FROM openjdk:17-jdk-slim: Starts a new, clean stage using a minimal "slim" version of the Java 17 runtime.
+    * Security Note: As of 2026, the official openjdk image is largely deprecated; industry standards now recommend using Eclipse Temurin or Amazon Corretto as more secure, long-term alternatives.
+    b. COPY --from=build /target/*.jar app.jar: Copies only the resulting JAR file from the first stage (the "build" container) into this new stage. This discards the Maven source code and build tools, significantly reducing the final image size.
+    c. ENTRYPOINT ["java", "-jar", "app.jar"]: Configures the container to run your application immediately upon startup.
+
+3. @Slf4j
+@Slf4j is a Lombok annotation used to automatically generate a Logger field in your class at compile time. It is the industry standard for reducing boilerplate in modern Spring Boot 3.4+ applications. SLF4J is a wrapper/facade class so you can use many different log types, such as logback, log4j , etc.
+
+Functionality
+    a. Automatic Injection: It adds the following code to your class behind the scenes:
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(YourClassName.class);
+    b. Field Name: The generated logger instance is always named log.
+
+Prerequisites
+    a. To use @Slf4j, you must have the Lombok dependency in your project
+
+When you run log.info(log.getClass().getName()) and see ch.qos.logback.classic.Logger, it confirms that Logback is the active logging implementation behind your SLF4J interface.
+Your application is using the Logback framework to handle logging tasks.

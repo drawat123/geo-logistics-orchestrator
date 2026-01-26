@@ -1,16 +1,17 @@
 package io.github.drawat123.geo_logistics_orchestrator.controller;
 
 import io.github.drawat123.geo_logistics_orchestrator.dto.OrderCreatedEvent;
+import io.github.drawat123.geo_logistics_orchestrator.dto.OrderDTO;
 import io.github.drawat123.geo_logistics_orchestrator.model.Order;
 import io.github.drawat123.geo_logistics_orchestrator.model.OrderStatus;
 import io.github.drawat123.geo_logistics_orchestrator.repository.OrderRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -25,7 +26,7 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<Order> createOrder(@RequestBody Order order) {
+    public ResponseEntity<OrderDTO> createOrder(@RequestBody Order order) {
         // 1. Save the Order (Fast)
         order.setStatus(OrderStatus.PENDING);
         Order savedOrder = orderRepository.save(order);
@@ -35,6 +36,13 @@ public class OrderController {
         eventPublisher.publishEvent(new OrderCreatedEvent(savedOrder.getId()));
 
         // 3. Return Immediately to User
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedOrder);
+        return ResponseEntity.status(HttpStatus.CREATED).body(OrderDTO.fromEntity(savedOrder));
+    }
+
+    @CrossOrigin(origins = "*") // For development only
+    @GetMapping("/{orderId}")
+    public OrderDTO getOrder(@PathVariable String orderId) {
+        Optional<Order> order = orderRepository.findById(UUID.fromString(orderId));
+        return order.map(OrderDTO::fromEntity).orElse(null);
     }
 }

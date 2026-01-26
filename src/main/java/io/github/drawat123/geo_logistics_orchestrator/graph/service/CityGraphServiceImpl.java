@@ -2,6 +2,7 @@ package io.github.drawat123.geo_logistics_orchestrator.graph.service;
 
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.LocationNode;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.RoadEdge;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -52,11 +53,22 @@ public class CityGraphServiceImpl implements CityGraphService {
     }
 
     @Override
+    @Cacheable(value = "nearestNode", key = "#lat + '-' + #lon")
     public LocationNode findNearestNode(double lat, double lon) {
         LocationNode inputNode = new LocationNode("", lat, lon);
 
-        return nodeRegistry.values().stream()
+        LocationNode nearestNode = nodeRegistry.values().stream()
                 .min(Comparator.comparingDouble(node -> node.distanceTo(inputNode)))
                 .orElse(null);
+
+        simulateDelay(); // To prove cache works later
+        return nearestNode;
+    }
+
+    private void simulateDelay() {
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+        }
     }
 }

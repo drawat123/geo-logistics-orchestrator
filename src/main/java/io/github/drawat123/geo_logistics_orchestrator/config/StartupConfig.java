@@ -10,12 +10,14 @@ import io.github.drawat123.geo_logistics_orchestrator.model.Order;
 import io.github.drawat123.geo_logistics_orchestrator.model.OrderStatus;
 import io.github.drawat123.geo_logistics_orchestrator.repository.DriverRepository;
 import io.github.drawat123.geo_logistics_orchestrator.repository.OrderRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.math.BigDecimal;
 
+@Slf4j
 @Configuration
 public class StartupConfig {
     private final CityGraphService cityGraphService;
@@ -62,8 +64,12 @@ public class StartupConfig {
 
             PathResult pathResult = pathfinderService.findShortestPath(cityGraphService, l1.id(), l4.id());
 
-            System.out.println("Path: " + pathResult.path());
-            System.out.println("Distance: " + pathResult.totalDistance());
+            log.info("Path: {}", pathResult.path());
+            log.info("Distance: {}", pathResult.totalDistance());
+
+            // Checking caching
+            LocationNode node = cityGraphService.findNearestNode(10.1, 74.1);
+            node = cityGraphService.findNearestNode(10.1, 74.1);
 
             // 2. Seed a Driver (Positioned close to Node A)
             Driver driver = new Driver();
@@ -82,9 +88,9 @@ public class StartupConfig {
             // NOTE: We need the ID later for the API call, so print it
             Order savedOrder = orderRepository.save(order);
 
-            System.out.println(">>> TEST DATA READY <<<");
-            System.out.println("Driver ID: " + driver.getId()); // UUID
-            System.out.println("Order ID: " + savedOrder.getId()); // UUID*/
+            log.info(">>> TEST DATA READY <<<");
+            log.info("Driver ID: {}", driver.getId()); // UUID
+            log.info("Order ID: {}", savedOrder.getId()); // UUID*/
         };
     }
 }

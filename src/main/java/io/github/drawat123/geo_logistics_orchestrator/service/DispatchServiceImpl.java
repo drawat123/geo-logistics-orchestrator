@@ -12,6 +12,7 @@ import io.github.drawat123.geo_logistics_orchestrator.model.OrderStatus;
 import io.github.drawat123.geo_logistics_orchestrator.repository.DriverRepository;
 import io.github.drawat123.geo_logistics_orchestrator.repository.OrderRepository;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Propagation;
 
 import java.util.*;
 
+@Slf4j
 @Service
 public class DispatchServiceImpl implements DispatchService {
     private final OrderRepository orderRepository;
@@ -66,7 +68,7 @@ public class DispatchServiceImpl implements DispatchService {
 
                 candidates.add(new AbstractMap.SimpleEntry<>(driver, result));
             } catch (Exception e) {
-                System.out.println("Driver " + driver.getId() + " cannot reach target: " + e.getMessage());
+                log.error("Driver {} cannot reach target: {}", driver.getId(), e.getMessage());
             }
         }
 
@@ -82,9 +84,9 @@ public class DispatchServiceImpl implements DispatchService {
                 // Note: We need to pass IDs, not Entity objects, to ensure fresh fetching in the new transaction
                 return self.attemptBooking(orderId, driverCandidate.getId(), path);
             } catch (ObjectOptimisticLockingFailureException e) {
-                System.out.println("Race condition: Driver " + driverCandidate.getId() + " was taken. Trying next...");
+                log.error("Race condition: Driver {} was taken. Trying next...", driverCandidate.getId());
             } catch (Exception e) {
-                System.out.println("Unexpected error booking driver: " + e.getMessage());
+                log.error("Unexpected error booking driver: {}", e.getMessage());
             }
         }
 

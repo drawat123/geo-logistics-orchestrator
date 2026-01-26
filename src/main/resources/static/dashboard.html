@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dispatch Dashboard</title>
+    <style>
+        .status { padding: 10px; border-radius: 5px; font-weight: bold; }
+        .PENDING { background-color: #f39c12; }
+        .ASSIGNED { background-color: #2ecc71; }
+    </style>
+</head>
+<body>
+<h2>Order Monitor</h2>
+<input type="text" id="orderIdInput" placeholder="Enter Order ID">
+<button onclick="startTracking()">Track</button>
+
+<div id="result" style="margin-top: 20px;">
+    Status: <span id="statusBadge" class="status">WAITING</span>
+</div>
+
+<script>
+    let intervalId;
+
+    function startTracking() {
+        const orderId = document.getElementById('orderIdInput').value;
+        if (intervalId) clearInterval(intervalId);
+
+        // Poll every 2 seconds
+        intervalId = setInterval(() => checkStatus(orderId), 2000);
+    }
+
+    async function checkStatus(id) {
+        try {
+            // Adjust port/endpoint as per your implementation
+            const response = await fetch(`http://localhost:8080/api/orders/${id}`);
+            const data = await response.json();
+
+            const badge = document.getElementById('statusBadge');
+            badge.innerText = data.status;
+            badge.className = "status " + data.status;
+
+            // Stop polling if final state reached
+            if (data.status === 'ASSIGNED') {
+                clearInterval(intervalId);
+                alert("Order Assigned to Driver: " + data.driverId);
+            }
+        } catch (e) {
+            console.error("Polling error", e);
+        }
+    }
+</script>
+</body>
+</html>
