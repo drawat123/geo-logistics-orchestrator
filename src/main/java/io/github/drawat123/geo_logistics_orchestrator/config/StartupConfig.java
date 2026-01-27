@@ -1,21 +1,20 @@
 package io.github.drawat123.geo_logistics_orchestrator.config;
 
+import io.github.drawat123.geo_logistics_orchestrator.dto.RegisterRequest;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.LocationNode;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.PathResult;
 import io.github.drawat123.geo_logistics_orchestrator.graph.service.CityGraphService;
 import io.github.drawat123.geo_logistics_orchestrator.graph.service.PathFinderService;
-import io.github.drawat123.geo_logistics_orchestrator.model.Driver;
-import io.github.drawat123.geo_logistics_orchestrator.model.DriverStatus;
-import io.github.drawat123.geo_logistics_orchestrator.model.Order;
-import io.github.drawat123.geo_logistics_orchestrator.model.OrderStatus;
+import io.github.drawat123.geo_logistics_orchestrator.model.*;
 import io.github.drawat123.geo_logistics_orchestrator.repository.DriverRepository;
 import io.github.drawat123.geo_logistics_orchestrator.repository.OrderRepository;
+import io.github.drawat123.geo_logistics_orchestrator.repository.RoleRepository;
+import io.github.drawat123.geo_logistics_orchestrator.repository.UserRepository;
+import io.github.drawat123.geo_logistics_orchestrator.service.AuthService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.math.BigDecimal;
 
 @Slf4j
 @Configuration
@@ -28,17 +27,30 @@ public class StartupConfig {
 
     private final OrderRepository orderRepository;
 
-    public StartupConfig(CityGraphService cityGraphService, PathFinderService pathfinderService, DriverRepository driverRepository, OrderRepository orderRepository) {
+    private final RoleRepository roleRepository;
+
+    private final AuthService authService;
+
+    public StartupConfig(CityGraphService cityGraphService, PathFinderService pathfinderService, DriverRepository driverRepository, OrderRepository orderRepository, RoleRepository roleRepository, AuthService authService) {
         this.cityGraphService = cityGraphService;
         this.pathfinderService = pathfinderService;
         this.driverRepository = driverRepository;
         this.orderRepository = orderRepository;
+        this.roleRepository = roleRepository;
+        this.authService = authService;
     }
 
     @Bean
     public CommandLineRunner myCommandLineRunner() {
         // The run method will be executed by Spring Boot automatically at application startup
         return args -> {
+            // If the table is empty, add the roles
+            if (roleRepository.count() == 0) {
+                roleRepository.save(new Role(ERole.ROLE_CUSTOMER));
+                roleRepository.save(new Role(ERole.ROLE_DRIVER));
+                roleRepository.save(new Role(ERole.ROLE_ADMIN));
+            }
+
             /*
             A(10,74) -> [( B(11,34), 5 ), ( C(8,10), 2 )]
             B(11,34) -> [( D(48,30), 4 )]
@@ -71,12 +83,21 @@ public class StartupConfig {
             LocationNode node = cityGraphService.findNearestNode(10.1, 74.1);
             node = cityGraphService.findNearestNode(10.1, 74.1);
 
-            // 2. Seed a Driver (Positioned close to Node A)
-            Driver driver = new Driver();
-            driver.setStatus(DriverStatus.AVAILABLE);
-            driver.setLatitude(10.1);
-            driver.setLongitude(74.1);
-            driverRepository.save(driver);
+            if (driverRepository.count() == 0) {
+                RegisterRequest request = new RegisterRequest(
+                        "test driver",
+                        "testdriver@mail.com",
+                        "Test@123",
+                        ERole.ROLE_DRIVER // <--- HARDCODE THIS
+                );
+
+                // 2. Seed a Driver (Positioned close to Node A)
+                Driver driver = authService.registerDriver(request);
+                driver.setStatus(DriverStatus.AVAILABLE);
+                driver.setLatitude(10.1);
+                driver.setLongitude(74.1);
+                driverRepository.save(driver);
+            }
 
             // 3. Seed an Order (Destination close to Node E)
             /*Order order = new Order();

@@ -1,6 +1,7 @@
 package io.github.drawat123.geo_logistics_orchestrator.service;
 
 import io.github.drawat123.geo_logistics_orchestrator.dto.DispatchResult;
+import io.github.drawat123.geo_logistics_orchestrator.dto.OrderDTO;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.LocationNode;
 import io.github.drawat123.geo_logistics_orchestrator.graph.model.PathResult;
 import io.github.drawat123.geo_logistics_orchestrator.graph.service.CityGraphService;
@@ -15,9 +16,11 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 
@@ -28,16 +31,18 @@ public class DispatchServiceImpl implements DispatchService {
     private final DriverRepository driverRepository;
     private final CityGraphService cityGraphService;
     private final PathFinderService pathfinderService;
-    // 1. Inject the class into itself (Lazy to avoid circular dependency errors)
+    private final SimpMessagingTemplate simpMessagingTemplate;
+    // Inject the class into itself (Lazy to avoid circular dependency errors)
     @Autowired
     @Lazy
     private DispatchService self;
 
-    public DispatchServiceImpl(OrderRepository orderRepository, DriverRepository driverRepository, CityGraphService cityGraphService, PathFinderService pathfinderService) {
+    public DispatchServiceImpl(OrderRepository orderRepository, DriverRepository driverRepository, CityGraphService cityGraphService, PathFinderService pathfinderService, SimpMessagingTemplate simpMessagingTemplate) {
         this.orderRepository = orderRepository;
         this.driverRepository = driverRepository;
         this.cityGraphService = cityGraphService;
         this.pathfinderService = pathfinderService;
+        this.simpMessagingTemplate = simpMessagingTemplate;
     }
 
     @Override
@@ -122,6 +127,28 @@ public class DispatchServiceImpl implements DispatchService {
 
         driverRepository.save(driver); // @Version check happens here
         orderRepository.save(order);
+
+        // Define the notification task
+        Runnable sendNotification = () ->
+                simpMessagingTemplate.convertAndSendToUser(
+                        order.getUser().getEmail(),
+                        "/queue/orders",
+                        OrderDTO.fromEntity(order)
+                );
+
+        //️ SAFETY CHECK: Is there an actual transaction?
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            // Production Mode: Wait for Commit
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendNotification.run();
+                }
+            });
+        } else {
+            // Test Mode: Send Immediately (No transaction to wait for)
+            sendNotification.run();
+        }
 
         double etaMinutes = (path.totalDistance() / 40.0) * 60;
         return new DispatchResult(driver.getId(), path.totalDistance(), etaMinutes);

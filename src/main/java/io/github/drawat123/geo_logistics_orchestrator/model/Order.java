@@ -25,6 +25,10 @@ public class Order {
     @JoinColumn(name = "driver_id", nullable = true) // Defines the foreign key column
     private Driver driver;
 
+    @ManyToOne(fetch = FetchType.EAGER) // Many orders belong to one user
+    @JoinColumn(name = "user_id", nullable = false) // Defines the foreign key column
+    private User user;
+
     // Add status so we know if it's PENDING or DELIVERED
     @Enumerated(EnumType.STRING)
     private OrderStatus status = OrderStatus.PENDING;

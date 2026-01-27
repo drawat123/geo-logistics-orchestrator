@@ -14,6 +14,7 @@ public record OrderDTO(
         Double destinationLat,
         Double destinationLon,
         UUID driverId, // We only expose the ID, not the whole Driver object
+        String userEmail,
         LocalDateTime createdAt
 ) {
     // Records allow you to add static helper methods inside them!
@@ -25,6 +26,7 @@ public record OrderDTO(
                 order.getDestinationLat(),
                 order.getDestinationLon(),
                 (order.getDriver() != null) ? order.getDriver().getId() : null,
+                order.getUser().getEmail(),
                 order.getCreatedAt()
         );
     }

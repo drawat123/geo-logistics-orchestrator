@@ -61,14 +61,6 @@ public class CityGraphServiceImpl implements CityGraphService {
                 .min(Comparator.comparingDouble(node -> node.distanceTo(inputNode)))
                 .orElse(null);
 
-        simulateDelay(); // To prove cache works later
         return nearestNode;
-    }
-
-    private void simulateDelay() {
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-        }
     }
 }

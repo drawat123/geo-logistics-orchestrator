@@ -12,3 +12,10 @@ spring:
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
+
+jwt:
+  secret: "sL8y90SuoGrepH9FXWz4sc9eQaubSbIqnGGxw6ZMHLk"
+  expirationMs: 900000
+
+cors:
+  allowed-origins: "http://localhost:63342,https://myapp.com"

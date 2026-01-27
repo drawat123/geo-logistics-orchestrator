@@ -14,6 +14,11 @@ public class Driver {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    // The Link: One Driver belongs to One User
+    @OneToOne
+    @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
+    private User user;
+
     @Enumerated(EnumType.STRING)
     private DriverStatus status; // Uses the DriverStatus enum defined above
 

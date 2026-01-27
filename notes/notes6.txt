@@ -1,0 +1,431 @@
+1. WebSockets with STOMP
+WebSocket (What & Why)
+    a. Protocol enabling a persistent, full‑duplex connection between client and server.
+    b. Starts as HTTP, then upgrades to WebSocket (101 Switching Protocols).
+    c. Allows server push (no request–response limitation).
+    d. Use cases: chat, notifications, dashboards, live monitoring.
+    e. HTTP vs WebSocket - HTTP: request → response → close - WebSocket: open once → talk anytime (both directions)
+
+STOMP (What & Why)
+    a. STOMP = Simple/Streaming Text Oriented Messaging Protocol.
+    b. Runs on top of WebSocket.
+    c. Adds structure: commands, headers, destinations, pub/sub.
+    d. Why STOMP? - Raw WebSocket is low‑level (no routing, no subscriptions). - STOMP provides a standard messaging model.
+
+Core Concepts
+    a. Endpoint
+    Initial WebSocket connection URL.
+    Example: /ws
+    b. Destinations
+    Message addresses (like URLs): - Application: /app/* (Client → Server) - Topic: /topic/* (Server → Many clients) - Queue: /queue/* (Server → One client) - User: /user/queue/* (Server → Specific user)
+    c. Broker
+    Routes messages to subscribers.
+    Simple Broker: in‑memory (dev/small scale).
+    External Broker: RabbitMQ / ActiveMQ (production scale).
+
+STOMP Commands
+    Command	    Purpose
+    CONNECT	    Start STOMP session
+    SUBSCRIBE	Listen to a destination
+    SEND	    Send message
+    MESSAGE	    Delivered message
+    DISCONNECT	Close session
+
+STOMP Frame Structure
+COMMAND
+header1:value1
+header2:value2
+body
+
+Example:
+SEND
+destination:/app/chat.send
+content-type:application/json
+{"text":"Hello"}
+
+Message Flow (End‑to‑End)
+    a. Client opens WebSocket connection
+    b. Client sends CONNECT
+    c. Client SUBSCRIBEs to /topic/messages
+    d. Client SENDs to /app/chat.send
+    e. Server processes & publishes
+    f. Subscribers receive MESSAGE
+
+Spring Boot Configuration
+WebSocket Config
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+        .setAllowedOrigins("*")
+        .withSockJS();
+    }
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setApplicationDestinationPrefixes("/app");
+    }
+}
+
+Spring STOMP Controller
+@Controller
+public class ChatController {
+    @MessageMapping("/chat.send")
+    @SendTo("/topic/messages")
+    public ChatMessage send(ChatMessage msg) {
+        return msg;
+    }
+}
+Client sends to /app/chat.send
+Server broadcasts to /topic/messages
+
+Client (JavaScript)
+const socket = new SockJS('/ws');
+const stompClient = Stomp.over(socket);
+stompClient.connect({}, () => {
+    stompClient.subscribe('/topic/messages', msg => {
+        console.log(JSON.parse(msg.body));
+    });
+    stompClient.send('/app/chat.send', {}, JSON.stringify({
+        text: 'Hello'
+    }));
+});
+
+User‑Specific Messaging
+Server
+simpMessagingTemplate.convertAndSendToUser(
+    username,
+    "/queue/notifications",
+    payload
+)
+Client subscribes to
+/user/queue/notifications
+Use cases: alerts, personal updates, admin actions.
+
+Security Notes
+    a. Works with Spring Security.
+    b. Auth via:
+        * Session cookies
+        * JWT in CONNECT headers
+        * Destinations can be role‑protected.
+
+STOMP vs Raw WebSocket
+    Raw WebSocket   STOMP
+    Low‑level       High‑level
+    Manual routing  Built‑in routing
+    Custom protocol Standard protocol
+    Hard to scale   Broker‑friendly
+
+When to Use / Avoid
+    a. Use STOMP when:
+        * Real‑time UI updates
+        * Chat & notifications
+        * Spring Boot applications
+
+    b. Avoid when:
+        * Ultra‑low latency gaming
+        * Binary streaming (video/audio)
+        * Massive throughput systems
+
+Mental Model (Exam‑Ready)
+    a. WebSocket = persistent connection
+    b. STOMP = messaging rules on that connection
+    c. Spring = REST‑like programming model for real‑time
+
+2. User Table (The Entity)
+What & Why
+    a. What: Represents the actual user data stored in the database.
+    b. Why: Security needs a source of truth to verify identities (login) and permissions (roles).
+    c. Mapping: Maps a Java class to a relational DB table (e.g., `users`).
+
+Core Fields
+    a. ID: Primary key (Long or UUID) to uniquely identify the record.
+    b. Username/Email: The unique identifier used for login. (Must be `unique=true`).
+    c. Password: The hashed secret (BCrypt). Never store plain text!
+    d. Roles: Authorization level (e.g., `ROLE_DRIVER`, `ROLE_ADMIN`). Used for access control.
+
+Key Annotations
+    a. `@Entity`: Marks class as a JPA entity.
+    b. `@Table(name="users")`: Specifies the table name (avoids reserved keywords like `user` in Postgres).
+    c. `@Id`, `@GeneratedValue`: Handles primary key creation.
+
+@UniqueConstraint (The Safety Net)
+    a. Definition: A JPA annotation used inside `@Table` to define unique keys at the database schema level.
+    b. Function: Instructs the database to create an index that rejects duplicate values for the specified column(s).
+    c. vs @Column(unique=true):
+        * `@Column(unique=true)` is a shortcut for single fields.
+        * `@UniqueConstraint` is more flexible; it supports Composite Constraints (uniqueness based on a combination of multiple columns, e.g., `firstName` + `lastName`).
+    d. Race Condition Protection:
+        * Even if Java validation passes (due to multi-threaded timing issues), this constraint guarantees the database will never store duplicate data.
+    e. Error Handling: Violating this constraint throws a `DataIntegrityViolationException` in Spring, which you can catch to show a "User already exists" message.
+
+@ManyToMany (The Logic)
+    a. Definition: A relational mapping where one entity (User) relates to many others (Roles), and vice-versa.
+    b. FetchType.EAGER:
+        * Default: `LAZY` (Hibernate loads related data only when you specifically ask for it).
+        * Our Choice: `EAGER` (Hibernate loads the Roles immediately when the User is fetched).
+        * Why? Spring Security filters often run after the database transaction has closed. If roles are not already loaded, the app will crash with a `LazyInitializationException`.
+    c. Data Structure (`Set` vs `List`):
+        * We use `Set<Role>` to guarantee uniqueness.
+        * A `List` would allow duplicates (e.g., a user having `ROLE_ADMIN` twice), which is logically wrong and wastes memory.
+
+@JoinTable (The Schema)
+    a. The Problem: Relational databases cannot store a "List" inside a single row. You cannot have a column `roles` containing "Admin, Driver".
+    b. The Solution: A third "Intermediate Table" (Join Table) is created to link the Primary Keys from both sides.
+    c. Configuration Attributes:
+        * `name`: The actual name of the table in the database (e.g., `"user_roles"`).
+        * `joinColumns`: The Foreign Key column pointing to this entity (`user_id`).
+        * `inverseJoinColumns`: The Foreign Key column pointing to the other entity (`role_id`).
+
+Core Concepts
+    a. Normalization
+        * The database design rule that forces us to use 3 tables (Users, Roles, User_Roles) instead of 1 messy table. It reduces redundancy and improves data integrity.
+    b. Owner Side
+        * The entity containing the `@JoinTable` annotation (User) is the "Owner." It is responsible for saving and updating the relationship.
+    c. Schema Visualization
+        * Users Table: `[id, username]`
+        * Roles Table: `[id, name]`
+        * Join Table (The Bridge): `[user_id, role_id]` (Contains only numbers mapping the two).
+
+3. JwtUtil (The Engine Room)
+What & Why
+    a. What: A utility class that handles all cryptographic operations for JWTs.
+    b. Why: Decouples complex math (signing/parsing) from business logic. The rest of the app just calls `generateToken()` or `validateToken()`.
+    c. Stateless: It doesn't look at the DB; it only looks at the token string and the Secret Key.
+
+Core Functions
+    a. Generate Token (The Printer):
+        * Input: User's identity (Email/Username).
+        * Action: Creates a JSON payload with Claims (Subject, Expiration, IssueDate).
+        * Output: A `String` signed with HMAC-SHA256.
+    b. Extract Claims (The Reader):
+        * Input: Token string.
+        * Action: Decodes the Base64 payload using the Secret Key.
+        * Output: The Subject (Email) or Expiration Date.
+    c. Validate Token (The Checkpoint):
+        * Checks 1: Signature Integrity (Has it been tampered with?).
+        * Checks 2: Expiration (Is `now < exp`?).
+
+Key Concept: The Secret Key
+    a. A private string used to sign tokens. If lost/stolen, hackers can forge admin tokens.
+
+4. UserDetailsServiceImpl (The Bridge)
+What & Why
+    a. What: A custom service that implements Spring Security's `UserDetailsService` interface.
+    b. Why: Spring Security doesn't know about *your* `User` entity or `UserRepository`. This class translates your DB data into a format Spring understands (`UserDetails`).
+
+The Contract
+    a. Interface: `UserDetailsService`.
+    b. Method: `loadUserByUsername(String username)`.
+    c. Mandatory: You *must* implement this, or Spring Security will use default/random passwords.
+
+The Workflow
+    a. Input: Receives a username/email from the login attempt.
+    b. Fetch: Calls `userRepository.findByEmail()`.
+    c. Exception: Throws `UsernameNotFoundException` if the DB comes back empty.
+    d. Translate: Converts your `com.myapp.User` -> `org.springframework.security.core.userdetails.User`.
+
+5. JwtRequestFilter (The Guard)
+What & Why
+    a. What: A custom filter that intercepts every HTTP request before it reaches the Controller.
+    b. Why: To check for a valid JWT "Passport". If valid, it manually logs the user in for that specific request.
+    c. Base Class: `OncePerRequestFilter` (Guarantees execution happens exactly once per request).
+
+The Logic Flow (`doFilterInternal`)
+    a. Check Header: Look for `Authorization: Bearer <token>`.
+    b. Extract & Verify: Use `JwtUtil` to get the username and check validity.
+    c. Check Context: "Is this user already logged in?" (`SecurityContextHolder.getContext().getAuthentication() == null`).
+    d. Authenticate: If valid, create a `UsernamePasswordAuthenticationToken` and inject it into the `SecurityContext`.
+    e. Pass: Hand control to the next filter (`chain.doFilter`).
+
+Q: "What is the trade-off of this 'Stateless' approach?"
+    a. "The trade-off is Revocation. If I ban a user in the database, this filter won't know until the JWT expires (because it never checks the DB). To fix this in production, I would add a 'Blacklist' cache (Redis) or keep expiration times short (e.g., 15 minutes)."
+
+6. SecurityConfig (The Rulebook)
+What & Why
+    a. What: The central configuration class (`@Configuration`) that wires everything together.
+    b. Why: Defines "Who can go where" and "How we handle login". It overrides Spring's secure defaults.
+
+Key Configurations
+    a. CSRF Disabled: Essential for stateless APIs (we use tokens, not session cookies).
+    b. Session Policy: `STATELESS`. Tells Spring *never* to create a server-side session (JSESSIONID).
+    c. Route Protection:
+    d. `.permitAll()`: Open access (Login, Register, Swagger UI).
+    e. `.authenticated()`: Locked access (Orders, Dashboard).
+
+Filter Order: `.addFilterBefore(jwtFilter, ...)` ensures our JWT check happens *before* Spring tries to look for a username/password form.
+
+The Manager Bean
+    a. Exposes `AuthenticationManager` so the `AuthController` can use it to verify passwords.
+    b. AuthenticationManager passes the request to: AuthenticationProvider
+    c. AuthenticationProvider does the work:
+        * Calls UserDetailsService -> "Get me user 'drawat' from DB.
+        * "Calls PasswordEncoder -> "Does 'pass123' match '$2a$10$...'?
+    d. "Result travels back up the chain to the user.
+
+You might wonder: "Wait, in the previous step we removed UserDetailsService from the Filter to be stateless. Why is it back here?"
+This is the perfect architectural distinction to explain in an interview:
+    a. The Login Path (Stateful-ish):
+        * User sends (user, pass).
+        * AuthController calls AuthenticationManager.
+        * This Config uses UserDetailsService to look up the user in the DB and check the password hash.
+        * Result: A signed JWT is given to the user.
+    b. The API Path (Purely Stateless):
+        * User sends Request + JWT.
+        * JwtRequestFilter intercepts it.
+        * It uses JwtUtil to verify the signature (Math).
+        * It does not call UserDetailsService (No DB).
+
+7. AuthController (The Ticket Office)
+What & Why
+    a. What: The REST Controller that exposes public endpoints for authentication.
+    b. Why: Users need a way to trade their credentials (User/Pass) for a Token (JWT).
+
+Core Endpoints
+    a. POST /login:
+        * Input: `LoginRequest` (email, password).
+        * Action: Calls `AuthenticationManager.authenticate()`.
+        * Success: Returns a JWT string (generated by `JwtUtil`).
+        * Failure: Throws 401/403 (handled by Spring).
+    b. POST /register:
+        * Input: `RegisterRequest`.
+        * Action: Hashes the password (`passwordEncoder.encode()`) and saves the new User to the DB.
+
+8. The Configuration (`WebSocketConfig`)
+Role: The "Traffic Control Center." It defines where clients connect and how messages are routed.
+    a. `@EnableWebSocketMessageBroker`: Activates the higher-level STOMP messaging protocol (instead of raw WebSockets), allowing us to use a Pub/Sub model.
+    b. Endpoints (`/ws-registry`): The HTTP URL where the frontend performs the initial Handshake to upgrade the connection.
+        * *SockJS:* Enabled to provide fallbacks (like HTTP Polling) if the browser/firewall blocks raw WebSockets.
+    c. The Broker (`configureMessageBroker`):
+        * `/topic`: Public channels (One-to-Many). *Example: Admin Dashboard live map.*
+        * `/queue`: Private channels (One-to-One). *Example: Specific Driver job assignment.*
+        * `/app`: Upstream prefix (Client-to-Server). *Example: Driver sending GPS coordinates.*
+        * `/user`: The magic prefix for private messaging. It tells Spring to resolve a username to a specific Session ID.
+
+9. The Security Guard (`WebSocketAuthInterceptor`)
+Role: Secures the connection because standard HTTP Filters (like `JwtRequestFilter`) do not run for individual WebSocket frames.
+    a. Why we need it: Browsers cannot send custom Headers (like Authorization) during the initial WebSocket Handshake. We must send the JWT inside the STOMP Connect Frame.
+    b. `preSend` Method: Intercepts every message before it hits the broker.
+    c. Logic:
+        * Listens for the `STOMP_CONNECT` command.
+        * Extracts the `Authorization: Bearer <token>` header from the STOMP frame.
+        * Validates the JWT using `JwtUtil`.
+        * Crucial Step: Calls `accessor.setUser(authentication)`. This links the physical WebSocket session to the specific User/Driver. Without this, `convertAndSendToUser` will not work.
+
+10. The Sender (`SimpMessagingTemplate`)
+Role: The tool used inside Services/Controllers to push data to clients.
+    a. `convertAndSend(destination, payload)`:
+        * Broadcasts to everyone subscribed to that destination.
+        * *Use Case:* Updating the Admin Map with all orders.
+    b. `convertAndSendToUser(username, destination, payload)`:
+        * Smart routing. Sends a message *only* to the session belonging to `username`.
+        * *Translation:* If you send to user "drawat@gmail.com" on destination `/queue/orders`, Spring translates this to `/user/queue/orders` for that specific user's socket connection.
+        * *Use Case:* "You have a new ride request."
+
+11. The Safety Net (Transaction Synchronization)
+Role: Prevents "Ghost Notifications" (Data Consistency).
+    a. The Problem: If you send a WebSocket message *inside* a `@Transactional` method, the frontend receives the data before the database transaction commits.
+        * *Risk:* If the DB commit fails (rollback), the user sees an order that doesn't exist.
+    b. The Solution: `TransactionSynchronizationManager`
+    c. How it works:
+    ```java
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+            // WebSocket send happens HERE, only if DB succeeds.
+        }
+    });
+
+12. Client-Side Implementation (Mental Model)
+For this backend to work, your Frontend (React/Angular) must do three things:
+    a. Handshake: Connect to `http://localhost:8080/ws-registry`.
+    b. Authenticate: Send the token in the STOMP connect headers.
+    ```javascript
+    stompClient.connect({ 'Authorization': 'Bearer ' + jwtToken }, ...);
+    ```
+    c. Subscribe:
+    * Public: `stompClient.subscribe('/topic/orders', ...)`
+    * Private: `stompClient.subscribe('/user/queue/orders', ...)`
+    * *Note:* The client subscribes to `/user/queue/...`. They do not need to put their own email in the string. Spring handles that mapping automatically based on the Principal set in the Interceptor.
+
+Interview Cheat Sheet
+    a. Protocol: STOMP over WebSockets.
+    b. Auth: Token in STOMP Headers (not HTTP headers), validated by `ChannelInterceptor`.
+    c. Routing: `SimpMessagingTemplate` for pushing data.
+    d. Consistency: Always send messages `afterCommit` to ensure DB and UI stay in sync.
+    
+13. Simulating Race Conditions (The "Scripted Failure")
+Role: Forces the code to execute the "Retry/Failover" logic (`try-catch` loop) which rarely happens naturally.
+    a. The Problem: A "Race Condition" (two drivers booking at the exact same millisecond) is impossible to reproduce consistently in a single-threaded Unit Test.
+    b. The Solution: Use Mockito’s `doThrow()` to script a specific failure scenario.
+    c. How it works (The Movie Script):
+    * Scene 1: When the Service tries to save Driver A, throw an `OptimisticLockingFailureException`.
+    * Scene 2: When the Service tries to save Driver B, return success.
+    ```java
+    // 1. Force the crash on the first candidate
+    doThrow(new ObjectOptimisticLockingFailureException(Driver.class, driverA.getId()))
+        .when(driverRepository).save(driverA);
+
+    // 2. Allow success on the second candidate
+    when(driverRepository.save(driverB)).thenReturn(driverB);
+
+    ```
+
+14. Mocking Database State (The "Time Loop" Fix)
+Role: Simulates a "Database Rollback" in memory.
+    a. The Problem (Persistent State): In a real DB, if a transaction fails, changes are rolled back. In a Unit Test, Java objects keep their state.
+        * Risk: Attempt 1 modifies the `order` object (sets `driver=A`). When Attempt 2 runs, it sees the *same* dirty object, thinks the order is already taken, and fails.
+    b. The Solution: Use `.thenAnswer(...)` instead of `.thenReturn(...)`.
+    c. How it works: It forces Mockito to create a brand new object every time the method is called, ensuring Attempt 2 gets a "clean" order just like a fresh DB query.
+    ```java
+    when(orderRepository.findById(any())).thenAnswer(invocation -> {
+        Order freshOrder = new Order();
+        freshOrder.setId(order.getId());
+        freshOrder.setDriver(null); // CRITICAL: Reset state!
+        return Optional.of(freshOrder);
+    });
+    ```
+
+15. The Proxy Bypass (Self-Injection Hack)
+Role: Enables testing of `@Transactional(REQUIRES_NEW)` logic within the same service.
+    a. The Problem: Calling `this.attemptBooking()` ignores Spring's Transaction Proxy (no rollback support). We use `self.attemptBooking()` in code, but `self` is `null` in a Unit Test because Spring isn't running.
+    b. The Solution: Use `ReflectionTestUtils` to manually inject the test instance into itself.
+    c. Implementation:
+    ```java
+    @InjectMocks
+    private DispatchServiceImpl dispatchService;
+
+    @BeforeEach
+    void setUp() {
+        // "Cheat" code to set the private 'self' field
+        ReflectionTestUtils.setField(dispatchService, "self", dispatchService);
+    }
+    ```
+
+16. Verifying the Logic (The "CCTV" Check)
+Role: Proves that the Failover mechanism actually triggered.
+    * a. The Mental Model: Just checking `result == DriverB` is not enough. The test could pass if your sorting logic was broken and it just picked Driver B first by accident.
+    * b. The Solution: Use `verify()` to ensure the code *tried* the first option before settling on the second.
+    ```java
+    // Proof that we followed the priority list (tried A first)
+    verify(driverRepository).save(driverA);
+
+    // Proof that we successfully failed over (saved B second)
+    verify(driverRepository).save(driverB);
+    ```
+
+17. Capturing Real Data (`ArgumentCaptor`)
+Role: Inspecting the final state of objects passed to dependencies.
+    a. The Problem: Since we used the "Time Loop" fix (Section 14), our local `order` variable in the test is never updated. We can't assert on it.
+    b. The Solution: Capture the *actual* object the Service passed to the Repository during the successful save.
+    ```java
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    verify(orderRepository).save(captor.capture());
+
+    Order finalSavedOrder = captor.getValue();
+    // Now assert on the REAL data
+    assertEquals(driverB.getId(), finalSavedOrder.getDriver().getId());
+
+    ```
