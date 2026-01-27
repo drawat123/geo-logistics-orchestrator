@@ -1,0 +1,135 @@
+1. WebSockets with STOMP
+WebSocket (What & Why)
+    a. Protocol enabling a persistent, full‑duplex connection between client and server.
+    b. Starts as HTTP, then upgrades to WebSocket (101 Switching Protocols).
+    c. Allows server push (no request–response limitation).
+    d. Use cases: chat, notifications, dashboards, live monitoring.
+    e. HTTP vs WebSocket - HTTP: request → response → close - WebSocket: open once → talk anytime (both directions)
+
+STOMP (What & Why)
+    a. STOMP = Simple/Streaming Text Oriented Messaging Protocol.
+    b. Runs on top of WebSocket.
+    c. Adds structure: commands, headers, destinations, pub/sub.
+    d. Why STOMP? - Raw WebSocket is low‑level (no routing, no subscriptions). - STOMP provides a standard messaging model.
+
+Core Concepts
+    a. Endpoint
+    Initial WebSocket connection URL.
+    Example: /ws
+    b. Destinations
+    Message addresses (like URLs): - Application: /app/* (Client → Server) - Topic: /topic/* (Server → Many clients) - Queue: /queue/* (Server → One client) - User: /user/queue/* (Server → Specific user)
+    c. Broker
+    Routes messages to subscribers.
+    Simple Broker: in‑memory (dev/small scale).
+    External Broker: RabbitMQ / ActiveMQ (production scale).
+
+STOMP Commands
+    Command	    Purpose
+    CONNECT	    Start STOMP session
+    SUBSCRIBE	Listen to a destination
+    SEND	    Send message
+    MESSAGE	    Delivered message
+    DISCONNECT	Close session
+
+STOMP Frame Structure
+COMMAND
+header1:value1
+header2:value2
+body
+
+Example:
+SEND
+destination:/app/chat.send
+content-type:application/json
+{"text":"Hello"}
+
+Message Flow (End‑to‑End)
+    a. Client opens WebSocket connection
+    b. Client sends CONNECT
+    c. Client SUBSCRIBEs to /topic/messages
+    d. Client SENDs to /app/chat.send
+    e. Server processes & publishes
+    f. Subscribers receive MESSAGE
+
+Spring Boot Configuration
+WebSocket Config
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+        .setAllowedOrigins("*")
+        .withSockJS();
+    }
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setApplicationDestinationPrefixes("/app");
+    }
+}
+
+Spring STOMP Controller
+@Controller
+public class ChatController {
+    @MessageMapping("/chat.send")
+    @SendTo("/topic/messages")
+    public ChatMessage send(ChatMessage msg) {
+        return msg;
+    }
+}
+Client sends to /app/chat.send
+Server broadcasts to /topic/messages
+
+Client (JavaScript)
+const socket = new SockJS('/ws');
+const stompClient = Stomp.over(socket);
+stompClient.connect({}, () => {
+    stompClient.subscribe('/topic/messages', msg => {
+        console.log(JSON.parse(msg.body));
+    });
+    stompClient.send('/app/chat.send', {}, JSON.stringify({
+        text: 'Hello'
+    }));
+});
+
+User‑Specific Messaging
+Server
+simpMessagingTemplate.convertAndSendToUser(
+    username,
+    "/queue/notifications",
+    payload
+)
+Client subscribes to
+/user/queue/notifications
+Use cases: alerts, personal updates, admin actions.
+
+Security Notes
+    a. Works with Spring Security.
+    b. Auth via:
+    * Session cookies
+    * JWT in CONNECT headers
+    * Destinations can be role‑protected.
+
+STOMP vs Raw WebSocket
+Raw WebSocket   STOMP
+Low‑level       High‑level
+Manual routing  Built‑in routing
+Custom protocol Standard protocol
+Hard to scale   Broker‑friendly
+
+When to Use / Avoid
+Use STOMP when:
+Real‑time UI updates
+Chat & notifications
+Spring Boot applications
+
+Avoid when:
+Ultra‑low latency gaming
+Binary streaming (video/audio)
+Massive throughput systems
+
+Mental Model (Exam‑Ready)
+    a. WebSocket = persistent connection
+    b. STOMP = messaging rules on that connection
+    c. Spring = REST‑like programming model for real‑time

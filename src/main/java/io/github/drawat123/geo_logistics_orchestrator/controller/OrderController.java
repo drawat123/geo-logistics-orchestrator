@@ -8,6 +8,7 @@ import io.github.drawat123.geo_logistics_orchestrator.repository.OrderRepository
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
@@ -18,11 +19,13 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderRepository orderRepository;
-    private final ApplicationEventPublisher eventPublisher; // <--- Inject this
+    private final ApplicationEventPublisher eventPublisher;
+    private final SimpMessagingTemplate simpMessagingTemplate;
 
-    public OrderController(OrderRepository orderRepository, ApplicationEventPublisher eventPublisher) {
+    public OrderController(OrderRepository orderRepository, ApplicationEventPublisher eventPublisher, SimpMessagingTemplate simpMessagingTemplate) {
         this.orderRepository = orderRepository;
         this.eventPublisher = eventPublisher;
+        this.simpMessagingTemplate = simpMessagingTemplate;
     }
 
     @PostMapping
@@ -30,6 +33,8 @@ public class OrderController {
         // 1. Save the Order (Fast)
         order.setStatus(OrderStatus.PENDING);
         Order savedOrder = orderRepository.save(order);
+
+        simpMessagingTemplate.convertAndSend("/topic/orders", OrderDTO.fromEntity(savedOrder));
 
         // 2. Publish Event (Fire and Forget)
         // This triggers the DispatchEventListener in the background
