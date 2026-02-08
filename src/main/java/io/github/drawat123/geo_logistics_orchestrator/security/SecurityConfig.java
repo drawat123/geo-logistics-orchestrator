@@ -46,7 +46,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll() // Allow Login/Register
                         .requestMatchers("/h2-console/**").permitAll() // Allow H2 DB (if used)
-                        .requestMatchers("/ws-registry/**").permitAll()         // FIX 2: Allow WebSocket Handshake (if used)
+                        .requestMatchers("/ws-registry/**").permitAll() // FIX 2: Allow WebSocket Handshake (if used)
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN") // SECURE ACTUATOR (Admin Only)
                         .anyRequest().authenticated() // Protect everything else
                 )
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)) // Allow H2 Console Frames

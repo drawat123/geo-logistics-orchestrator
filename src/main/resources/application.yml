@@ -10,8 +10,18 @@ spring:
     hibernate:
       ddl-auto: update
     properties:
-      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
     show-sql: true
+
+logging:
+  level:
+    org:
+      hibernate:
+        orm:
+          jdbc:
+            bind: TRACE
 
 jwt:
   secret: "sL8y90SuoGrepH9FXWz4sc9eQaubSbIqnGGxw6ZMHLk"
@@ -19,3 +29,19 @@ jwt:
 
 cors:
   allowed-origins: "http://localhost:63342,https://myapp.com"
+
+# --- Actuator Configuration ---
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose specific endpoints via HTTP
+        include: "health,info,metrics,loggers"
+  endpoint:
+    health:
+      # Show full details for health (e.g., Disk space, DB connection status)
+      show-details: always
+  info:
+    env:
+      # Enable info endpoint
+      enabled: true

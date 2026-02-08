@@ -11,7 +11,12 @@ import java.util.UUID;
 
 @Entity
 @Data // Use Lombok for getters/setters
-@Table(name = "orders") // Good practice to name tables plural
+@Table(name = "orders", indexes = {
+        // fast lookup for "SELECT * FROM orders WHERE status = 'PENDING'"
+        @Index(name = "idx_order_status", columnList = "status"),
+        // fast lookup for "SELECT * FROM orders WHERE driver_id = ?"
+        @Index(name = "idx_order_driver", columnList = "driver_id")
+}) // Good practice to name tables plural
 @EntityListeners(AuditingEntityListener.class)
 public class Order {
     @Id

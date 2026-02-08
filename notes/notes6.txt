@@ -370,7 +370,6 @@ Role: Forces the code to execute the "Retry/Failover" logic (`try-catch` loop) w
 
     // 2. Allow success on the second candidate
     when(driverRepository.save(driverB)).thenReturn(driverB);
-
     ```
 
 14. Mocking Database State (The "Time Loop" Fix)
@@ -427,5 +426,4 @@ Role: Inspecting the final state of objects passed to dependencies.
     Order finalSavedOrder = captor.getValue();
     // Now assert on the REAL data
     assertEquals(driverB.getId(), finalSavedOrder.getDriver().getId());
-
     ```

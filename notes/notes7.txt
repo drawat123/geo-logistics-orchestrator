@@ -1,0 +1,67 @@
+1. Observability (The Dashboard)
+Role: Giving you X-Ray vision into the running application.
+    a. The Problem: When the server is live, you can't see the console logs easily. If the DB connection drops, the app just hangs, and you don't know why.
+    b. The Solution: Spring Boot Actuator. It creates hidden endpoints that report the internal state.
+    c. Key Endpoints:
+    * `/actuator/health`: "Am I alive? Is the DB connected? Is Disk space full?"
+    * `/actuator/metrics`: "How much RAM am I using? How many requests per second?"
+    * `/actuator/loggers`: Superpower. Allows you to change log levels (DEBUG/INFO) *while the app is running* without restarting.
+
+2. Security for Actuator (The Gatekeeper)
+Role: Protecting your internal data from the public.
+    a. The Risk: If you expose `/actuator/env`, a hacker can see your environment variables (AWS Keys, DB Passwords). If you expose `/actuator/heapdump`, they can download your memory and find user passwords.
+    b. The Fix: Network Isolation + Application Security.
+    ```java
+    // SecurityConfig.java
+    .requestMatchers("/actuator/").hasRole("ADMIN") // Only Admins enter
+    ```
+
+3. Automated Documentation (Swagger/OpenAPI)
+Role: The "User Manual" that writes itself.
+    a. The Problem: Manual documentation (Postman, Word docs) is always outdated. If you change code but forget to update the doc, the frontend breaks.
+    b. The Solution: SpringDoc. It scans your Controller code and generates a live website (`/swagger-ui.html`) where you can test APIs.
+    c. The JWT Challenge:
+    * Swagger doesn't know you use JWTs by default.
+    * You must configure a `SecurityScheme` bean to add the "Padlock" button.
+    * White-listing: You must allow `/v3/api-docs/` in `SecurityConfig`, or the UI will load forever (403 Forbidden).
+
+4. Database Indexing (Performance Part 1)
+Role: Changing search speed from Linear Time  to Logarithmic Time .
+    a. The Metaphor:
+    * No Index: To find "John", you read every single page of a 1000-page book.
+    * Index: You look at the back of the book, find "John: Page 42", and go straight there.
+    b. Implementation:
+    * Add indexes on columns used in `WHERE`, `JOIN`, and `ORDER BY` clauses.
+    * In JPA:
+    ```java
+    @Table(indexes = {
+        @Index(name = "idx_email", columnList = "email", unique = true), // Login Speed
+        @Index(name = "idx_status", columnList = "status") // Dispatcher Speed
+    })
+    ```
+
+5. The N+1 Query Problem (Performance Part 2)
+Role: The "Silent Killer" of Hibernate performance.
+    a. The Problem: You want to fetch 10 Orders.
+    * Hibernate runs Query 1: `SELECT * FROM orders`.
+    * For *each* order, it sees a `driver_id`, so it runs: `SELECT * FROM drivers WHERE id = ?`.
+    * Result: 1 + 10 = 11 Queries for one simple list. If you have 10,000 orders, you kill the DB.
+    b. Detection: Enable `spring.jpa.show-sql=true`. If you see a wall of similar `SELECT` statements, you have N+1.
+    c. The Fix: Fetch Joins. Tell the DB to bring the data in One Shot.
+    ```java
+    // Bad (Lazy Load triggers N+1)
+    List<Order> findAll();
+
+    // Good (Eager Fetch via Query)
+    @Query("SELECT o FROM Order o JOIN FETCH o.driver")
+    List<Order> findAllOrdersWithDrivers();
+    ```
+
+6. Mental Model: "Lazy" vs. "Eager" Loading
+    a. Lazy (Default for Relationships): "Don't load the Driver data until I actually say `order.getDriver().getName()`."
+    * *Pro:* Saves memory if you don't need driver info.
+    * *Con:* Causes N+1 problem if you loop through a list and access the driver.
+    b. Eager (Using `JOIN FETCH`): "Load the Order AND the Driver data right now in the main query."
+    * *Pro:* Only 1 Query.
+    * *Con:* Loads more data into memory initially.
+    c. Rule of Thumb: Use Lazy by default, but switch to Eager (via `@Query`) for specific endpoints where you know you need the related data (like the Dashboard).

@@ -5,6 +5,12 @@ import io.github.drawat123.geo_logistics_orchestrator.dto.OrderCreatedEvent;
 import io.github.drawat123.geo_logistics_orchestrator.dto.OrderDTO;
 import io.github.drawat123.geo_logistics_orchestrator.model.Order;
 import io.github.drawat123.geo_logistics_orchestrator.service.OrderService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +36,30 @@ public class OrderController {
         this.simpMessagingTemplate = simpMessagingTemplate;
     }
 
+    @Operation(
+            summary = "Create a new delivery order",
+            description = "<b>Role: CUSTOMER only.</b><br>" +
+                    "Creates a new order, triggers the internal dispatch event, and broadcasts " +
+                    "real-time updates to the Admin Dashboard via WebSockets (`/topic/admin/orders`).",
+            security = @SecurityRequirement(name = "Bearer Authentication") // Matches the name in your OpenApiConfig
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Order created successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OrderDTO.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request data (e.g., missing destination coordinates)",
+                    content = @Content // No body for errors
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - User does not have ROLE_CUSTOMER",
+                    content = @Content
+            )
+    })
     @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping
     public ResponseEntity<OrderDTO> createOrder(@RequestBody CreateOrderRequest request, Principal principal) {
